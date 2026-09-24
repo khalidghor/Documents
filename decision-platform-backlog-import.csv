@@ -1,0 +1,293 @@
+Issue Type,Summary,Description,Acceptance Criteria,Epic Name,Epic Link,Priority,Story Points,Component,Labels,Fix Version,Requirement,Objective,Critical To Outcome,Team,Blocked By
+Epic,Decision Evidence Layer,"Every eligible decision on the CURRENT engine emits what was chosen, what else was permitted, the probability assigned, and what the fallback would have done. This is the one capability that cannot be backfilled.",,Decision Evidence Layer,,P0,,Decision Runtime,decision-platform d30 req-r8,D30,R8,O3,,Payments Platform,
+Story,Define the decision record schema,"As the platform, I need a single schema for every decision the engine makes, so that decisions from different decision points are comparable and joinable.","• Schema covers: decision point id, strategy id and version, chosen action, permitted action set, propensity assigned to the chosen action, fallback action that would have fired, population context, timestamp, transaction and customer identifiers.
+• Schema is versioned and additive-only.
+• Reviewed and signed off by Architecture and Analytics Engineering.",,Decision Evidence Layer,P0,5,Decision Runtime,decision-platform d30 req-r8,D30,R8,O3,Y,Payments Platform,
+Story,Emit decision records from the routing engine (D6),"As an analyst, I need every routing decision logged with its counterfactual, so that routing strategies can later be evaluated off-policy.","• Every D6 decision on eligible traffic emits a record.
+• No change to the routing decision itself — output is byte-identical to today for a control sample of 1M transactions.
+• Record includes the permitted processor set and the fallback processor.",,Decision Evidence Layer,P0,8,Decision Runtime,decision-platform d30 req-r8,D30,R8,O3,Y,Payments Platform,Define the decision record schema
+Story,Emit decision records from the retry engine (D4.2),"As an analyst, I need retry decisions logged with what else was permitted, so that retry strategies become evaluable.","• Every D4.2 decision emits a record, including no-action decisions.
+• Retry behaviour unchanged.
+• Retry records link to the parent authorization attempt.",,Decision Evidence Layer,P0,8,Decision Runtime,decision-platform d30 req-r8,D30,R8,O3,Y,Payments Platform,Define the decision record schema
+Story,Emit decision records from credential selection (D4.1),"As an analyst, I need credential selection logged with the alternative credential, so that Experiment 1 has a counterfactual to report.","• Every D4.1 decision emits a record naming the credential presented and the credential not presented.
+• Credential values are tokenised in the record — no PAN in the event store.
+• Credential selection behaviour unchanged.",,Decision Evidence Layer,P0,8,Decision Runtime,decision-platform d30 req-r8,D30,R8,O3,Y,Payments Platform,Define the decision record schema
+Story,Assign and document propensity for deterministic strategies,"As an analyst, I need a stated propensity convention for deterministic strategies, so that off-policy estimators are not silently mis-specified later.","• Deterministic strategies record propensity 1.0 on the chosen action and 0 on the alternatives.
+• Convention is documented alongside the schema, with the implications for off-policy evaluation stated.
+• A strategy class field distinguishes DETERMINISTIC from future stochastic classes.",,Decision Evidence Layer,P0,3,Decision Runtime,decision-platform d30 req-r8,D30,R8,O3,Y,Payments Platform,Define the decision record schema
+Story,Record the fallback action without executing it,"As the platform, I need to know what the fallback would have done, so that attribution is possible without running two flows.","• Fallback resolution runs in shadow and never dispatches.
+• Added latency measured and within the agreed budget.
+• Fallback field is never null for a decision that has a registered fallback.",,Decision Evidence Layer,P0,5,Decision Runtime,decision-platform d30 req-r8,D30,R8,O3,Y,Payments Platform,Define the decision record schema
+Story,Persist decision records with 13-month retention,"As an analyst, I need at least four quarters of history, so that seasonality can be separated from effect.","• Records land in the event store within 60 seconds of the decision.
+• 13-month retention configured and cost-modelled.
+• Partitioned for efficient replay by date range and decision point.",,Decision Evidence Layer,P0,5,Decision Runtime,decision-platform d30 req-r8,D30,R8,O3,Y,Payments Platform,Define the decision record schema
+Story,Block synthesised propensity in downstream jobs,"As a reviewer, I need the platform to refuse reconstructed propensity, so that an evaluated result is never quietly based on a guess.","• Any job writing a propensity value for a record that did not carry one is rejected.
+• Rejection is logged and alerts the strategy owner.
+• Documented as a platform invariant, not a lint rule.",,Decision Evidence Layer,P0,3,Decision Runtime,decision-platform d30 req-r8,D30,R8,O3,N,Payments Platform,Persist decision records with 13-month retention
+Story,Verify record completeness against transaction volume,"As a reviewer, I need proof that the evidence layer is not silently dropping decisions, so that a later readout is trustworthy.","• Daily reconciliation: decision records vs eligible transactions, by decision point.
+• Completeness at or above 99.5%.
+• Shortfall below threshold raises an alert with the missing population identified.",,Decision Evidence Layer,P0,5,Decision Runtime,decision-platform d30 req-r8,D30,R8,O3,Y,Payments Platform,Persist decision records with 13-month retention
+Spike,SPIKE: measure added latency of decision-record emission,"As the platform owner, I need to know what the evidence layer costs in latency before it goes to full traffic, so that the authorization path is not degraded.","• p50, p95 and p99 added latency measured at production-representative volume.
+• Result compared against the agreed latency budget.
+• Recommendation on synchronous vs asynchronous emission, with the trade-off on completeness stated.",,Decision Evidence Layer,P0,3,Decision Runtime,decision-platform d30 req-r8,D30,R8,O3,Y,Payments Platform,
+Epic,Permanent Platform Holdout,"A 2% population reserved before the first experiment runs, excluded from experiments and from exploration, with a creation date that cannot be edited.",,Permanent Platform Holdout,,P0,,Decision Runtime,decision-platform d30 req-r7,D30,R7,O2 O3,,Payments Platform,
+Story,Define holdout eligibility and the assignment rule,"As the platform owner, I need a stated rule for who is in the holdout, so that it is defensible and stable over time.","• Eligibility defined at customer level, with the population and exclusions written down.
+• Assignment is a deterministic hash — same customer, same answer, forever.
+• Rule reviewed by Analytics Engineering for representativeness against the total population.",,Permanent Platform Holdout,P0,3,Decision Runtime,decision-platform d30 req-r7,D30,R7,O2 O3,Y,Payments Platform,
+Story,Implement deterministic 2% holdout assignment,"As the platform, I need holdout membership computed the same way everywhere, so that it cannot drift between services.","• Assignment implemented once and consumed by every caller.
+• Same customer resolves identically across regions.
+• Membership resolvable in under 1ms.",,Permanent Platform Holdout,P0,5,Decision Runtime,decision-platform d30 req-r7,D30,R7,O2 O3,Y,Payments Platform,Define holdout eligibility and the assignment rule
+Story,Exclude the holdout from experiments and from exploration,"As a reviewer, I need the holdout untouched by any learning activity, so that it measures the platform rather than the experiments.","• Holdout members are never enrolled in any experiment.
+• Holdout members are never selected for exploration traffic.
+• An attempt to include them fails closed and raises an alert.",,Permanent Platform Holdout,P0,5,Decision Runtime,decision-platform d30 req-r7,D30,R7,O2 O3,Y,Payments Platform,Implement deterministic 2% holdout assignment
+Story,Persist holdout membership with an immutable creation date,"As a reviewer, I need to prove when the holdout was reserved, so that the claim that it pre-dates the experiments is verifiable.","• Creation date recorded at first assignment and not editable by any role.
+• Membership history retained for the life of the platform.
+• Audit log for any membership change.",,Permanent Platform Holdout,P0,3,Decision Runtime,decision-platform d30 req-r7,D30,R7,O2 O3,Y,Payments Platform,Implement deterministic 2% holdout assignment
+Story,Holdout health report,"As an analyst, I need to see holdout composition and drift, so that a divergence from the general population is caught early.","• Weekly report: volume, merchant mix, geography mix, card mix vs the non-holdout population.
+• Alerts on material composition drift.
+• Report retained as evidence alongside readouts.",,Permanent Platform Holdout,P1,5,Decision Runtime,decision-platform d30 req-r7,D30,R7,O2 O3,N,Payments Platform,Persist holdout membership with an immutable creation date
+Story,"Document the holdout as a governed, non-resizable asset","As the platform owner, I need a stated rule that the holdout cannot be quietly resized, so that its value is not eroded under delivery pressure.","• Written policy: resizing or reconstituting the holdout requires a named approval from the platform owner.
+• Policy referenced in the experiment registration gates.",,Permanent Platform Holdout,P1,2,Decision Runtime,decision-platform d30 req-r7,D30,R7,O2 O3,N,Payments Platform,
+Epic,Decision-Point & Capability Registry — Definition,"Agree what the decision points are, what each may choose from, and what a route can actually support. Scope and schema only — the build is D60.",,Decision-Point & Capability Registry — Definition,,P0,,Architecture,decision-platform d30 req-r1,D30,R1,O1 O5,,Architecture,
+Story,Catalogue the current decision points and permitted action sets,"As an architect, I need a written inventory of where the payment flow makes choices, so that the registry describes reality rather than an ideal.","• All five current decision points documented: D4 gate, D4.1 credential, D4.2 retry, D5 authentication, D6 routing.
+• Permitted action set enumerated for each, as implemented today.
+• Gaps between documented and actual behaviour listed explicitly.",,Decision-Point & Capability Registry — Definition,P0,5,Architecture,decision-platform d30 req-r1,D30,R1,O1 O5,Y,Architecture,
+Story,Define the capability model,"As an architect, I need a model of what each route and processor can actually support, so that a strategy cannot select an option that will fail downstream.","• Capability dimensions defined: credential forms accepted, authentication methods, currencies, MCCs, network tokens, retry semantics.
+• Model distinguishes contractual capability from technical capability.
+• Reviewed with Network and Processor Management.",,Decision-Point & Capability Registry — Definition,P0,5,Architecture,decision-platform d30 req-r1,D30,R1,O1 O5,Y,Architecture,
+Story,Agree the registry schema and versioning approach,"As an architect, I need the registry to be bitemporal, so that we can answer both what is true now and what was true when a decision was made.","• Schema covers valid time and knowledge time.
+• Versioning and deprecation rules written down.
+• Signed off by Architecture.",,Decision-Point & Capability Registry — Definition,P0,3,Architecture,decision-platform d30 req-r1,D30,R1,O1 O5,Y,Architecture,Catalogue the current decision points and permitted action sets
+Spike,SPIKE: survey processor capability data availability,"As an architect, I need to know which capability facts we can obtain and which we will have to assert, so that the D60 verification work is correctly sized.","• Each processor surveyed for available capability data and format.
+• Gaps listed with an estimate of effort to close.
+• Recommendation on which facts must be verified vs may be asserted with an expiry.",,Decision-Point & Capability Registry — Definition,P0,5,Architecture,decision-platform d30 req-r1,D30,R1,O1 O5,Y,Architecture,Define the capability model
+Story,Publish the registry scope decision for sign-off,"As the programme, I need the registry scope agreed before it is built, so that D60 is a build rather than a design.","• Scope document published naming what is in and out of the first registry.
+• Architecture sign-off recorded.
+• Out-of-scope items carried to the D90+ backlog rather than dropped.",,Decision-Point & Capability Registry — Definition,P0,2,Architecture,decision-platform d30 req-r1,D30,R1,O1 O5,Y,Architecture,Agree the registry schema and versioning approach
+Epic,Operating Model & Ownership,"The five ownership boundaries named, the exploration budget bounded, the economic objective expressed in a usable form, and the consent posture settled.",,Operating Model & Ownership,,P0,,Governance,decision-platform d30,D30,—,O1 O4,,Product,
+Story,Assign and document the five ownership boundaries,"As the programme, I need named owners for the five decisions that bound the platform, so that they are not re-litigated every quarter.","• Named owner recorded for: economic objective, exploration budget, decision-point registry, exposure authority, exploration consent.
+• Each owner has confirmed in writing.
+• Escalation path defined where two owners disagree.",,Operating Model & Ownership,P0,3,Governance,decision-platform d30,D30,—,O1 O4,Y,Product,
+Story,"Define the exploration budget in basis points, with a ceiling","As Product, I need a stated budget for what learning costs, so that exploration is a decision rather than an accident.","• Budget expressed in bps of qualifying volume, per quarter.
+• Hard ceiling defined, above which an experiment cannot start.
+• Consumption tracked and reported against the budget.",,Operating Model & Ownership,P0,3,Governance,decision-platform d30,D30,—,O1 O4,Y,Product,Assign and document the five ownership boundaries
+Story,Define the economic objective form by pricing model,"As Product and Finance, I need the approval-versus-cost trade-off expressed in a form a strategy can actually consume, so that BALANCED is a real posture rather than a label.","• Objective expressed as an exchange rate: bps of cost accepted per 100 bps of approval.
+• A value agreed separately for interchange-plus and for blended pricing.
+• Documented with worked examples in both directions.",,Operating Model & Ownership,P0,5,Governance,decision-platform d30,D30,—,O1 O4,Y,Product,Assign and document the five ownership boundaries
+Story,Legal review of exploration consent posture,"As the programme, I need to know whether a knowingly weaker arm on a named client needs contractual consent, so that Experiment 1 does not stop at the last gate.","• Legal opinion recorded on running a deliberately degraded arm on live merchant traffic.
+• Position stated for existing contracts and for new ones.
+• If consent is required, the consent artefact and the signing path are defined.",,Operating Model & Ownership,P0,5,Governance,decision-platform d30,D30,—,O1 O4,Y,Product,Assign and document the five ownership boundaries
+Story,Define the experiment review forum and decision rights,"As the programme, I need a standing forum with stated decision rights, so that promotion and abort decisions are made rather than escalated.","• Forum membership, cadence and quorum defined.
+• Decision rights stated: who may promote, who may abort, who may widen exposure.
+• First meeting scheduled.",,Operating Model & Ownership,P1,3,Governance,decision-platform d30,D30,—,O1 O4,N,Product,Assign and document the five ownership boundaries
+Epic,Strategy Registry & Artefact Lifecycle,"A strategy becomes a registered, versioned artefact with an owner, a fallback and an expiry — deployable without an engineering release.",,Strategy Registry & Artefact Lifecycle,,P0,,Control Plane,decision-platform d60 req-r1 req-r14,D60,R1 R14,O1 O4,,Payments Platform,
+Story,Strategy artefact schema,"As a strategy owner, I need a strategy to be a declared artefact rather than code, so that it can be reviewed, versioned and retired without a release.","• Schema: id, version, decision point, class, population predicate, definition, fallback strategy reference, owner, expiry.
+• Fallback is mandatory and must reference a registered strategy.
+• Owner and expiry are mandatory.",,Strategy Registry & Artefact Lifecycle,P0,5,Control Plane,decision-platform d60 req-r1 req-r14,D60,R1 R14,O1 O4,Y,Payments Platform,Agree the registry schema and versioning approach
+Story,Strategy registration API and CLI,"As a strategy owner, I need to register a strategy without an engineering release, so that the change cycle is days rather than quarters.","• API accepts a strategy artefact and returns a registered version.
+• CLI wraps the API for the common path.
+• Registration is rejected with a specific, actionable message when a field is invalid.",,Strategy Registry & Artefact Lifecycle,P0,8,Control Plane,decision-platform d60 req-r1,D60,R1,O1 O4,Y,Payments Platform,Strategy artefact schema
+Story,Version immutability,"As a reviewer, I need a registered version to be unchangeable, so that a readout always refers to a known artefact.","• A registered version cannot be edited — a change produces a new version.
+• Prior versions remain resolvable indefinitely.
+• Attempted edit is rejected and audited.",,Strategy Registry & Artefact Lifecycle,P0,5,Control Plane,decision-platform d60 req-r1,D60,R1,O1 O4,Y,Payments Platform,Strategy registration API and CLI
+Story,Owner and expiry enforcement,"As the platform owner, I need strategies to expire, so that nothing lingers unowned in the decision path.","• Expiry is mandatory at registration, with a maximum of 180 days.
+• Warnings to the owner at 30 and 7 days.
+• An expired strategy stops being bindable; flows already bound to it fall back and alert.",,Strategy Registry & Artefact Lifecycle,P0,5,Control Plane,decision-platform d60 req-r14,D60,R14,O1 O4,Y,Payments Platform,Strategy registration API and CLI
+Story,Strategy retirement workflow,"As a strategy owner, I need a clean way to retire a strategy, so that losing variants do not accumulate.","• Retirement blocks new bindings and reports which flows still reference the strategy.
+• Retirement is reversible within 30 days, then permanent.
+• Retired strategies remain resolvable for historical traces.",,Strategy Registry & Artefact Lifecycle,P1,5,Control Plane,decision-platform d60 req-r14,D60,R14,O1 O4,N,Payments Platform,Version immutability
+Story,Naming convention validation,"As a reviewer, I need strategy names to describe what they do, so that a trace is readable a year later.","• Registration rejects opaque names such as Strategy1 or Test_A.
+• Convention documented with positive and negative examples.
+• Existing names migrated before D60 exit.",,Strategy Registry & Artefact Lifecycle,P2,2,Control Plane,decision-platform d60 req-r1,D60,R1,O1 O4,N,Payments Platform,Strategy registration API and CLI
+Epic,Flow Composition & Single-Difference Compiler,"A flow binds exactly one strategy at every decision point, and the compiler refuses to build a variant that differs from its baseline at more than one.",,Flow Composition & Single-Difference Compiler,,P0,,Control Plane,decision-platform d60 req-r2,D60,R2,O2,,Payments Platform,
+Story,Flow artefact schema,"As a strategy owner, I need a flow to name exactly one strategy at every decision point, so that there is no implicit behaviour in the path.","• Schema: flow id, version, baseline reference, one binding per decision point.
+• An unbound decision point is a compile error, never a default.
+• Baseline reference is mandatory for a variant flow.",,Flow Composition & Single-Difference Compiler,P0,5,Control Plane,decision-platform d60 req-r2,D60,R2,O2,Y,Payments Platform,Strategy artefact schema
+Story,Flow compiler,"As the platform, I need flows compiled and validated before they exist in production, so that a broken flow cannot be exposed.","• Compiler resolves every binding to a registered, unexpired strategy version.
+• Compilation fails on any unbound or unresolvable decision point.
+• Compiled output is deterministic — same input, same artefact.",,Flow Composition & Single-Difference Compiler,P0,8,Control Plane,decision-platform d60 req-r2,D60,R2,O2,Y,Payments Platform,Flow artefact schema
+Story,Single-difference check,"As a reviewer, I need the compiler to refuse a variant that differs from its baseline at more than one decision point, so that attribution is guaranteed rather than assumed.","• Compiler computes the diff against the named baseline.
+• A diff count other than 1 for a variant flow is rejected with the differing points named.
+• Rejection cannot be overridden by a flag.",,Flow Composition & Single-Difference Compiler,P0,8,Control Plane,decision-platform d60 req-r2,D60,R2,O2,Y,Payments Platform,Flow compiler
+Story,Flow signing and integrity verification,"As the platform, I need flows cryptographically signed, so that what runs in production is what was reviewed.","• Every compiled flow is signed at build.
+• Runtime verifies the signature before resolution and refuses an unsigned or altered flow.
+• Key rotation procedure documented.",,Flow Composition & Single-Difference Compiler,P0,5,Control Plane,decision-platform d60 req-r2,D60,R2,O2,N,Payments Platform,Flow compiler
+Story,Flow bundle distribution,"As the platform, I need a new flow available in every region quickly, so that promotion is not a deployment.","• Bundle distributes to all regions with p99 under 60 seconds.
+• Distribution is observable, with per-region confirmation.
+• A region that fails to receive a bundle alerts and continues on last-known-good.",,Flow Composition & Single-Difference Compiler,P0,13,Control Plane,decision-platform d60 req-r2,D60,R2,O2,Y,Payments Platform,Flow signing and integrity verification
+Story,Regional flow resolution with last-known-good fallback,"As the platform, I need every region to resolve flows locally, so that a control-plane outage cannot stop authorization.","• Flow resolution is local, with no synchronous control-plane call on the authorization path.
+• Last-known-good bundle serves if the control plane is unreachable.
+• Staleness is measured and alerted beyond an agreed threshold.",,Flow Composition & Single-Difference Compiler,P0,8,Control Plane,decision-platform d60 req-r2,D60,R2,O2,Y,Payments Platform,Flow bundle distribution
+Epic,Replay & Backtest,"A candidate flow runs against logged decision records and produces an exact count of decisions that would change, and for whom, before any live exposure.",,Replay & Backtest,,P0,,Decision Runtime,decision-platform d60 req-r3,D60,R3,O1 O4,,Payments Platform,
+Story,Replay harness,"As a strategy owner, I need to run a candidate flow against traffic that already happened, so that I know its blast radius before exposing anyone.","• Harness replays a compiled flow against a date range of decision records.
+• Nothing is dispatched — no processor, network or merchant call is made.
+• Replay is reproducible: same flow, same window, same result.",,Replay & Backtest,P0,13,Decision Runtime,decision-platform d60 req-r3,D60,R3,O1 O4,Y,Payments Platform,Flow compiler
+Story,Exact changed-decision count and affected population report,"As a reviewer, I need to know precisely how many decisions change and for whom, so that promotion is a measured step rather than a leap.","• Report gives an exact count of decisions that would differ, not an estimate.
+• Affected population broken down by merchant, geography and card type.
+• Count expressed as a percentage of eligible traffic.",,Replay & Backtest,P0,8,Decision Runtime,decision-platform d60 req-r3,D60,R3,O1 O4,Y,Payments Platform,Replay harness
+Story,Policy conflict detection in replay,"As a compliance reviewer, I need to know whether a candidate flow would violate an existing policy, so that regulatory constraints are not discovered in production.","• Replay evaluates the candidate against the active policy set.
+• Any conflict is reported with the policy, the authority and the affected population.
+• A conflict blocks promotion.",,Replay & Backtest,P0,5,Decision Runtime,decision-platform d60 req-r3,D60,R3,O1 O4,Y,Payments Platform,Replay harness
+Story,Replay report as a promotion gate artefact,"As the platform, I need the replay report attached to the promotion record, so that the evidence travels with the decision.","• Promotion requires a replay report against a window of at least 30 days.
+• Report is immutably attached to the promotion record.
+• A stale report, older than 14 days, is rejected.",,Replay & Backtest,P0,5,Decision Runtime,decision-platform d60 req-r3,D60,R3,O1 O4,Y,Payments Platform,Exact changed-decision count and affected population report
+Story,Document the replay boundary,"As a reviewer, I need the limits of replay stated plainly, so that nobody treats a backtest as a result.","• Written statement: replay tells us which decisions would change, never whether they would have been approved.
+• Statement appears in the replay report itself, not only in a wiki.
+• Replay output is never merged with experiment output in any report.",,Replay & Backtest,P0,2,Decision Runtime,decision-platform d60 req-r3,D60,R3,O1 O4,Y,Payments Platform,Replay harness
+Epic,Experiment Registration & Mechanical Gates,"Registration pre-declares hypothesis, metric, effect size, direction, population, weights and stopping rule — and the gates that catch a broken design are mechanical, not a reviewer.",,Experiment Registration & Mechanical Gates,,P0,,Control Plane,decision-platform d60 req-r5,D60,R5,O2,,Experimentation,
+Story,Experiment artefact schema,"As an experiment owner, I need to pre-declare the design, so that the result cannot be re-framed once it arrives.","• Schema: hypothesis, single primary metric, effect size, direction, population predicate, arms and weights, randomisation unit, assignment point, stopping rule, guardrails.
+• Direction is mandatory.
+• Primary metric is singular — a list is rejected.",,Experiment Registration & Mechanical Gates,P0,5,Control Plane,decision-platform d60 req-r5,D60,R5,O2,Y,Experimentation,Strategy artefact schema
+Story,Sample-size calculator,"As an experiment owner, I need the duration derived from the effect size and the weights, so that experiments end on evidence rather than on a calendar.","• Calculator takes baseline rate, effect size, weights, power and alpha, and returns required enrolments per arm.
+• Unequal allocation handled correctly — a 95/5 split is not treated as 50/50.
+• Output is stored on the experiment artefact and drives the stop condition.",,Experiment Registration & Mechanical Gates,P0,8,Control Plane,decision-platform d60 req-r5,D60,R5,O2,Y,Experimentation,Experiment artefact schema
+Story,Gate: treatment must be deliverable to the whole test arm,"As a reviewer, I need qualification checked against what the treatment needs, so that part of the test arm cannot silently fail to receive it.","• Gate verifies that every member of the qualifying population can receive the variant treatment.
+• Qualification on the control credential alone is rejected when the treatment requires another.
+• Rejection names the unreachable sub-population.",,Experiment Registration & Mechanical Gates,P0,8,Control Plane,decision-platform d60 req-r5,D60,R5,O2,Y,Experimentation,Experiment artefact schema
+Story,Gate: single-difference flows only,"As a reviewer, I need the experiment gates to reuse the compiler check, so that there is one definition of a valid comparison.","• Registration rejects an experiment whose arms differ at more than one decision point.
+• Gate calls the compiler diff rather than reimplementing it.",,Experiment Registration & Mechanical Gates,P0,3,Control Plane,decision-platform d60 req-r5,D60,R5,O2,Y,Experimentation,Single-difference check
+Story,Gate: randomisation unit appropriate to the treatment,"As a reviewer, I need per-transaction randomisation blocked for credential-form changes, so that we do not create the risk signal we are trying to measure.","• Gate rejects per-transaction randomisation where the treatment changes credential form or authentication behaviour.
+• Rejection explains the issuer-behaviour reason.
+• Customer-level and merchant-level units supported.",,Experiment Registration & Mechanical Gates,P0,5,Control Plane,decision-platform d60 req-r5,D60,R5,O2,Y,Experimentation,Experiment artefact schema
+Story,Gate: pre-registration lock,"As a reviewer, I need the design frozen once traffic moves, so that the hypothesis cannot follow the data.","• No field on the experiment artefact is editable after the first enrolment, except exposure weights within the pre-declared ramp.
+• An attempted edit is rejected and audited.
+• Amendments require a new experiment with a stated relationship to the original.",,Experiment Registration & Mechanical Gates,P0,5,Control Plane,decision-platform d60 req-r5,D60,R5,O2,Y,Experimentation,Experiment artefact schema
+Story,Allocation ledger,"As the platform, I need one active experiment per layer and segment, so that two experiments cannot silently contaminate each other.","• Ledger records every active experiment against a controlled segment vocabulary.
+• Registering a second experiment on an occupied (layer, segment) is rejected with the conflicting experiment named.
+• Ledger is queryable and reported weekly.",,Experiment Registration & Mechanical Gates,P0,8,Control Plane,decision-platform d60 req-r5,D60,R5,O2,Y,Experimentation,Experiment artefact schema
+Epic,Registry Build & Processor Verification,"The decision-point and capability registries built and verified with processors rather than asserted, and enforced as a capability filter at decision time.",,Registry Build & Processor Verification,,P0,,Architecture,decision-platform d60 req-r1,D60,R1,O5,,Architecture,
+Story,Build the decision-point registry,"As the platform, I need the decision points registered rather than implied by code, so that a strategy can be bound to one without an engineering change.","• Registry built to the agreed schema, bitemporal.
+• All five current decision points registered.
+• Adding a decision point is a registry change, not a code change.",,Registry Build & Processor Verification,P0,8,Architecture,decision-platform d60 req-r1,D60,R1,O5,Y,Architecture,Publish the registry scope decision for sign-off
+Story,Build the capability registry,"As the platform, I need to know what each route can actually support, so that a strategy cannot choose an option that will fail.","• Registry built to the agreed capability model.
+• Capabilities carry a source and an expiry.
+• An expired capability fact degrades to unsupported rather than to assumed-supported.",,Registry Build & Processor Verification,P0,8,Architecture,decision-platform d60 req-r1,D60,R1,O5,Y,Architecture,Define the capability model
+Story,Verify capability data with processors,"As an architect, I need capabilities verified rather than asserted, so that the capability filter is trustworthy.","• Each processor capability confirmed with the processor or by controlled test.
+• Unverifiable facts marked as asserted, with an expiry and an owner.
+• Verification status visible in the registry and in any trace that used it.",,Registry Build & Processor Verification,P0,13,Architecture,decision-platform d60 req-r1,D60,R1,O5,N,Architecture,Build the capability registry
+Story,Enforce the capability filter at decision time,"As the platform, I need unsupported options removed before a strategy chooses, so that a strategy never has to know about downstream limits.","• Capability filter runs ahead of strategy evaluation at every decision point.
+• Filtered-out options appear in the decision record as not-permitted, with the reason.
+• Filter adds under 1ms at p99.",,Registry Build & Processor Verification,P0,8,Architecture,decision-platform d60 req-r1,D60,R1,O5,Y,Architecture,Build the capability registry
+Epic,Assignment & Exposure Control,"Promotion is decoupled from exposure, assignment is deterministic at the divergence point, and traffic moves by changing a number rather than by a deployment.",,Assignment & Exposure Control,,P0,,Decision Runtime,decision-platform d90 req-r4 req-r6,D90,R4 R6,O2 O4,,Payments Platform,
+Story,Promotion decoupled from exposure,"As a strategy owner, I need a flow to reach production at zero percent, so that promotion is safe and reversible by construction.","• A promoted flow is resolvable in every region and receives no traffic until an exposure record says so.
+• A flow can sit at 0% indefinitely without expiring.
+• Promotion changes no merchant behaviour and requires no deployment window.",,Assignment & Exposure Control,P0,5,Decision Runtime,decision-platform d90 req-r4,D90,R4,O2 O4,Y,Payments Platform,Regional flow resolution with last-known-good fallback
+Story,Deterministic assignment at the divergence point,"As an analyst, I need assignment to happen at the last node common to all arms, so that transactions that could never receive the treatment are not diluting the measurement.","• Assignment occurs immediately before the first differing decision point, not at context assembly.
+• Assignment is deterministic on the randomisation unit — same unit, same arm, for the life of the experiment.
+• Transactions that never reach the divergence point are not enrolled.",,Assignment & Exposure Control,P0,13,Decision Runtime,decision-platform d90 req-r6,D90,R6,O2 O4,Y,Payments Platform,Allocation ledger
+Story,Carry assignment across retries,"As an analyst, I need every attempt in a transaction to stay in the same arm, so that a retry cannot cross arms and corrupt the result.","• All attempts within a transaction resolve to the assigned arm.
+• Assignment is recorded on the first attempt and reused, never recomputed.
+• A cross-arm retry is impossible by construction, and any occurrence alerts.",,Assignment & Exposure Control,P0,8,Decision Runtime,decision-platform d90 req-r6,D90,R6,O2 O4,Y,Payments Platform,Deterministic assignment at the divergence point
+Story,Runtime exposure weight changes,"As an experiment owner, I need to change exposure by changing a number, so that ramping and stopping do not require a release.","• Weights changeable at runtime, taking effect within one propagation cycle.
+• Change is audited with actor, time and prior value.
+• Weights cannot be moved outside the pre-declared ramp without a documented override.",,Assignment & Exposure Control,P0,8,Decision Runtime,decision-platform d90 req-r4,D90,R4,O2 O4,Y,Payments Platform,Promotion decoupled from exposure
+Story,Treatment fidelity tracking,"As an analyst, I need transactions that fell back to stay in their assigned arm but be flagged, so that intent-to-treat and per-protocol can both be reported.","• A transaction that could not receive its assigned treatment remains in its arm and is flagged.
+• Fidelity rate computed per arm and reported live.
+• A fidelity floor is enforced as a promotion gate.",,Assignment & Exposure Control,P0,8,Decision Runtime,decision-platform d90 req-r6,D90,R6,O2 O4,Y,Payments Platform,Carry assignment across retries
+Story,Exposure authority controls and audit trail,"As the platform owner, I need exposure changes restricted to named roles, so that traffic does not move without accountability.","• Only holders of the exposure authority role may change weights.
+• Every change is audited and visible in the experiment record.
+• Emergency abort is available to on-call without the full role.",,Assignment & Exposure Control,P0,5,Decision Runtime,decision-platform d90 req-r4,D90,R4,O2 O4,N,Payments Platform,Runtime exposure weight changes
+Epic,Live Monitoring & Automatic Guardrail Abort,"Exposure, pace and guardrails visible in real time, with an arm removed from allocation automatically within one propagation cycle on breach.",,Live Monitoring & Automatic Guardrail Abort,,P0,,Observability,decision-platform d90 req-r9,D90,R9,O4,,Experimentation,
+Story,Real-time enrolment and exposure dashboard,"As an experiment owner, I need to see enrolment pace against the target, so that a stalled or runaway experiment is visible immediately.","• Dashboard shows qualifying volume, per-arm enrolment, actual vs target share, and projected days to sample size.
+• Refresh under five minutes.
+• Available to the review forum without a request.",,Live Monitoring & Automatic Guardrail Abort,P0,8,Observability,decision-platform d90 req-r9,D90,R9,O4,Y,Experimentation,Deterministic assignment at the divergence point
+Story,Guardrail metric computation,"As an experiment owner, I need guardrails computed continuously, so that harm is detected in hours rather than at readout.","• Computes approval gap, fraud proxy, dispute proxy, cost of acceptance, per-merchant harm and latency, per arm.
+• Each guardrail has a declared threshold on the experiment artefact.
+• Computation lag under 30 minutes.",,Live Monitoring & Automatic Guardrail Abort,P0,13,Observability,decision-platform d90 req-r9,D90,R9,O4,Y,Experimentation,Real-time enrolment and exposure dashboard
+Story,Automatic arm abort on breach,"As the platform owner, I need a breaching arm removed from allocation without a human in the path, so that the blast radius is bounded by the system rather than by a meeting.","• A guardrail breach removes the arm from allocation within one propagation cycle.
+• Abort requires no approval and cannot be blocked.
+• Aborted arms cannot be re-enabled without a documented review.",,Live Monitoring & Automatic Guardrail Abort,P0,13,Observability,decision-platform d90 req-r9,D90,R9,O4,Y,Experimentation,Guardrail metric computation
+Story,Abort floor on the effect itself,"As the platform owner, I need an experiment to stop if the effect is far worse than expected, so that a deliberately weaker arm cannot run away.","• An effect-size floor is declared on the experiment artefact alongside the guardrails.
+• Breaching the floor aborts the arm on the same path as a guardrail breach.
+• Floor is mandatory for any experiment whose declared direction is negative.",,Live Monitoring & Automatic Guardrail Abort,P0,5,Observability,decision-platform d90 req-r9,D90,R9,O4,Y,Experimentation,Automatic arm abort on breach
+Story,Per-merchant harm detection,"As Client Service, I need to know if the cost of an experiment is concentrating on one merchant, so that a portfolio-level pass does not hide an individual loss.","• Guardrails evaluated per merchant as well as in aggregate.
+• A merchant breaching individually is removed from the experiment without aborting it entirely.
+• Client Service is notified with the merchant and the measured impact.",,Live Monitoring & Automatic Guardrail Abort,P0,8,Observability,decision-platform d90 req-r9,D90,R9,O4,Y,Experimentation,Guardrail metric computation
+Story,Abort notification and post-abort report,"As the review forum, I need to know immediately when an arm aborts and why, so that the next decision is informed.","• Abort notifies the experiment owner, the platform owner and Client Service within five minutes.
+• Post-abort report states the breached guardrail, the measured value, the affected population and the exposure at abort.
+• Report attached to the experiment record.",,Live Monitoring & Automatic Guardrail Abort,P1,5,Observability,decision-platform d90 req-r9,D90,R9,O4,N,Experimentation,Automatic arm abort on breach
+Epic,Decision Trace,"Any transaction explained end to end — experiment membership, arm, flow, every decision applied and what the baseline would have decided — self-serve, in under two minutes.",,Decision Trace,,P0,,Observability,decision-platform d90 req-r10,D90,R10,O5,,Experimentation,
+Story,Per-transaction decision trace API,"As support and product, I need to retrieve every decision applied to a transaction, so that explaining an outcome does not require an engineer.","• API returns, for a transaction: experiment membership, arm, flow and version, every decision point with the strategy applied, the action chosen and the fallback that would have fired.
+• Response under two seconds at p95.
+• Available for any transaction within the retention window.",,Decision Trace,P0,8,Observability,decision-platform d90 req-r10,D90,R10,O5,Y,Experimentation,Persist decision records with 13-month retention
+Story,Self-serve trace UI,"As support, I need to answer ""why did this transaction do that"" myself, so that explanations are not an escalation.","• A non-engineer can go from transaction id to full explanation in under two minutes.
+• Tested with five users from Client Service, unassisted.
+• Links to the strategy and flow artefacts that were in force.",,Decision Trace,P1,13,Observability,decision-platform d90 req-r10,D90,R10,O5,N,Experimentation,Per-transaction decision trace API
+Story,Trace shows experiment membership and propensity,"As an analyst, I need membership and propensity visible per transaction, so that an individual case can be reconciled against the aggregate.","• Trace shows in-experiment yes/no, experiment name, arm, assignment unit, assignment point, propensity and treatment-delivered flag.
+• Fields match the decision record exactly — no re-derivation.",,Decision Trace,P0,5,Observability,decision-platform d90 req-r10,D90,R10,O5,Y,Experimentation,Per-transaction decision trace API
+Story,Trace shows the counterfactual per decision point,"As an analyst, I need the ""would have"" column in the trace, so that attribution is inspectable at the individual level.","• For each decision point, trace shows the action chosen and the action the baseline flow would have chosen.
+• The trace states plainly that this is what would have been decided, not what would have been approved.",,Decision Trace,P0,5,Observability,decision-platform d90 req-r10,D90,R10,O5,Y,Experimentation,Per-transaction decision trace API
+Story,Access control and PCI scope review for trace data,"As compliance, I need trace access governed, so that a debugging tool does not become a data exposure.","• Role-based access defined and implemented.
+• PCI scope assessment completed and signed off.
+• Credential values shown as tokens or last-four only; access to full values is separately controlled and audited.",,Decision Trace,P0,8,Observability,decision-platform d90 req-r10,D90,R10,O5,Y,Experimentation,Per-transaction decision trace API
+Epic,Outcome Join & Economic Readout,"Outcomes joined at four horizons, revised as later horizons land, and translated into merchant and PSP economics by pricing model.",,Outcome Join & Economic Readout,,P0,,Analytics,decision-platform d90 req-r11 req-r12,D90,R11 R12,O2,,Analytics Engineering,
+Story,Outcome join at four horizons,"As an analyst, I need decisions joined to outcomes as they land, so that a readout is not limited to what is known at authorization.","• Joins at authorization, settlement, 30-day fraud and 120-day dispute.
+• Each readout states which horizons are complete and which are pending.
+• Join is idempotent and reproducible.",,Outcome Join & Economic Readout,P0,13,Analytics,decision-platform d90 req-r11,D90,R11,O2,Y,Analytics Engineering,Verify record completeness against transaction volume
+Story,Readout revision as later horizons land,"As a decision maker, I need readouts revised rather than replaced, so that a conclusion drawn at 30 days is visibly superseded at 120.","• Each readout is versioned with the horizons it covers.
+• A later revision links to the one it supersedes and states what changed.
+• Prior revisions remain retrievable.",,Outcome Join & Economic Readout,P0,8,Analytics,decision-platform d90 req-r11,D90,R11,O2,Y,Analytics Engineering,Outcome join at four horizons
+Story,Scorecard computation,"As a decision maker, I need approval reported alongside cost, fraud, dispute and fidelity, so that no readout can present approval alone.","• Scorecard computes transaction approval, first-attempt approval, cost of acceptance, fraud proxy, dispute proxy and treatment fidelity.
+• A scorecard with a missing dimension is not publishable.
+• Each line shows control, variant, delta and status.",,Outcome Join & Economic Readout,P0,8,Analytics,decision-platform d90 req-r12,D90,R12,O2,Y,Analytics Engineering,Outcome join at four horizons
+Story,Confidence intervals and stopping-rule evaluation,"As a decision maker, I need an interval rather than a point estimate, so that a result is reported with its uncertainty.","• Confidence interval computed for every primary and guardrail metric.
+• Stopping rule evaluated against the pre-declared sample size, never against the observed effect.
+• Peeking is prevented or explicitly corrected, and which was done is stated.",,Outcome Join & Economic Readout,P0,8,Analytics,decision-platform d90 req-r12,D90,R12,O2,Y,Analytics Engineering,Scorecard computation
+Story,Economic translation by pricing model,"As Product and Finance, I need the result in money, so that the decision is commercial rather than statistical.","• Translates the measured effect into merchant margin and PSP net revenue, separately for interchange-plus and blended pricing.
+• Assumptions (margin rate, take rate) are named inputs, not constants in code.
+• Output shows the exchange rate: bps of cost per 100 bps of approval.",,Outcome Join & Economic Readout,P0,8,Analytics,decision-platform d90 req-r12,D90,R12,O2,Y,Analytics Engineering,Confidence intervals and stopping-rule evaluation
+Story,Publish the readout with a date and an expiry,"As the platform owner, I need every published number to carry an expiry, so that a measurement does not quietly become a claim.","• Readout is published with the measurement window, the baseline version and an expiry date.
+• An expired readout is flagged wherever it is cited.
+• Re-run cadence recorded on the readout.",,Outcome Join & Economic Readout,P0,3,Analytics,decision-platform d90 req-r12,D90,R12,O2,Y,Analytics Engineering,Economic translation by pricing model
+Epic,Promotion & Baseline Ratchet,"A winner promotes to a named population, the baseline recompiles with it bound in, and rollback is an exposure pointer change.",,Promotion & Baseline Ratchet,,P0,,Control Plane,decision-platform d90 req-r13,D90,R13,O2 O4,,Payments Platform,
+Story,Scoped promotion,"As a strategy owner, I need to promote a winner to a named population rather than globally, so that a result that holds for one segment is not applied to all.","• Promotion targets a declared population, using the same predicate vocabulary as the experiment.
+• Promotion outside the tested population requires a documented justification.
+• Promotion record links to the readout that justified it.",,Promotion & Baseline Ratchet,P0,8,Control Plane,decision-platform d90 req-r13,D90,R13,O2 O4,Y,Payments Platform,Publish the readout with a date and an expiry
+Story,Baseline recompile with the winner bound in,"As the platform, I need the baseline to move when a variant wins, so that the next experiment measures against the current best.","• A new baseline flow version is compiled with the winning strategy bound at the relevant decision point.
+• The prior baseline remains resolvable for historical traces.
+• Active experiments against the old baseline are flagged for re-baselining.",,Promotion & Baseline Ratchet,P0,8,Control Plane,decision-platform d90 req-r13,D90,R13,O2 O4,Y,Payments Platform,Scoped promotion
+Story,Rollback as an exposure pointer change,"As on-call, I need to reverse a promotion without a deployment, so that reversal is measured in minutes.","• Rollback changes an exposure pointer only — no deploy, no data migration.
+• Takes effect within one propagation cycle.
+• Rehearsed in a game day before D90 exit.",,Promotion & Baseline Ratchet,P0,3,Control Plane,decision-platform d90 req-r13,D90,R13,O2 O4,Y,Payments Platform,Baseline recompile with the winner bound in
+Story,Evidence record,"As the platform owner, I need every readout retained against its baseline version, so that cumulative value can be reconstructed later.","• Every readout stored with the baseline version it measured against, the population and the date.
+• Record is append-only.
+• Queryable to answer: what has this platform been worth since inception.",,Promotion & Baseline Ratchet,P1,5,Control Plane,decision-platform d90 req-r13,D90,R13,O2 O4,N,Payments Platform,Baseline recompile with the winner bound in
+Epic,Experiment 1 — Credential (execution),"Run the first controlled experiment end to end: vault network token as control, merchant-supplied credential as the deliberately weaker variant, to an economic readout.",,Experiment 1 — Credential (execution),,P0,,Experimentation,decision-platform d90,D90,—,O1 O2 O3 O4 O5,,Experimentation,
+Story,Register Cred_MerchantSupplied_v1,"As the credential product owner, I need the variant strategy registered, so that Experiment 1 has a treatment.","• Strategy registered against D4.1 with population, definition, fallback Cred_VaultNetworkToken_v4, owner and 180-day expiry.
+• Passes all registration gates.
+• Reviewed by credential product and risk.",,Experiment 1 — Credential (execution),P0,3,Experimentation,decision-platform d90,D90,—,O1 O2 O3 O4 O5,Y,Experimentation,Strategy registration API and CLI
+Story,Compose F3_MerchantCred_v1 from F2_VaultNWT_v6,"As the experiment owner, I need a variant flow that differs from the baseline at exactly one point, so that the result is attributable.","• Flow compiles with diff_count = 1 against F2_VaultNWT_v6.
+• Every other binding identical to the baseline.
+• Flow signed and distributed to all regions at 0% exposure.",,Experiment 1 — Credential (execution),P0,3,Experimentation,decision-platform d90,D90,—,O1 O2 O3 O4 O5,Y,Experimentation,Single-difference check
+Story,Backtest and publish the blast-radius report,"As the review forum, I need the exact number of decisions that would change before any exposure, so that promotion is an informed step.","• Replay against at least 30 days of decision records.
+• Report gives exact changed-decision count, percentage of eligible traffic and affected merchants.
+• No policy conflicts introduced.",,Experiment 1 — Credential (execution),P0,5,Experimentation,decision-platform d90,D90,—,O1 O2 O3 O4 O5,Y,Experimentation,Replay report as a promotion gate artefact
+Story,Register the experiment and clear all mechanical gates,"As the experiment owner, I need the design to pass the gates rather than a reviewer, so that the review meeting discusses the hypothesis instead of the statistics.","• Experiment registered with hypothesis, direction, single metric, 25 bps effect size, guardrails and abort floor.
+• All mechanical gates pass without override.
+• Sample size computed and duration expressed in enrolments.",,Experiment 1 — Credential (execution),P0,5,Experimentation,decision-platform d90,D90,—,O1 O2 O3 O4 O5,Y,Experimentation,Gate: pre-registration lock
+Story,Client consent and communication,"As Client Service, I need the participating merchant informed and consented where required, so that the experiment does not create a relationship problem.","• Consent posture applied per the Legal opinion.
+• Participating merchant(s) identified and briefed, with the expected exploration cost stated in bps.
+• Named Client Service contact assigned for the duration.",,Experiment 1 — Credential (execution),P0,8,Experimentation,decision-platform d90,D90,—,O1 O2 O3 O4 O5,Y,Experimentation,Legal review of exploration consent posture
+Story,Ramp to 3% and soak,"As the experiment owner, I need a soak period at low exposure, so that guardrails are proven before the arm widens.","• Exposure at 3% for a minimum soak of seven days.
+• All guardrails computing and within threshold.
+• Treatment fidelity above the declared floor.",,Experiment 1 — Credential (execution),P0,5,Experimentation,decision-platform d90,D90,—,O1 O2 O3 O4 O5,Y,Experimentation,Runtime exposure weight changes
+Story,Widen to 5% and run to sample size,"As the experiment owner, I need the experiment to run to its pre-declared sample size, so that the result is powered.","• Exposure widened to 5% within the pre-declared ramp.
+• Runs to 66,900 variant enrolments or an abort.
+• No design changes after first enrolment.",,Experiment 1 — Credential (execution),P0,5,Experimentation,decision-platform d90,D90,—,O1 O2 O3 O4 O5,Y,Experimentation,Ramp to 3% and soak
+Story,Produce the first economic readout,"As leadership, I need the first end-to-end readout, so that the platform has demonstrated the outcome it was built for.","• Scorecard published with all six dimensions, intervals and status.
+• Economic translation for both pricing models.
+• Readout carries a date, a baseline version and an expiry.
+• Presented to the review forum with a promote, hold or retire decision recorded.",,Experiment 1 — Credential (execution),P0,5,Experimentation,decision-platform d90,D90,—,O1 O2 O3 O4 O5,Y,Experimentation,Publish the readout with a date and an expiry
+Epic,Credential Seasoning (enables Experiment 2),"Provisioning decoupled from presentation so a treatment seasons before exposure — without this, Experiment 2 measures a freshly minted token rather than the vault.",,Credential Seasoning (enables Experiment 2),,P0,,Credential Vault,decision-platform d90plus req-r15,D90+,R15,O2,,Credential Vault,
+Story,Decouple credential provisioning from presentation,"As the vault product owner, I need provisioning and presentation to be separate acts, so that a token can exist without being used.","• Provisioning a network token does not change which credential is presented.
+• Presentation is controlled solely by the D4.1 strategy binding.
+• Provisioning state visible in the decision record.",,Credential Seasoning (enables Experiment 2),P0,13,Credential Vault,decision-platform d90plus req-r15,D90+,R15,O2,Y,Credential Vault,Emit decision records from credential selection (D4.1)
+Story,Provision ahead for the full eligible population,"As the experiment owner, I need tokens provisioned for control and variant alike before exposure, so that provisioning is not confounded with treatment.","• Eligible population provisioned regardless of arm.
+• Provisioning completes before experiment start, with a verification report.
+• Provisioning cost accounted separately from exploration cost.",,Credential Seasoning (enables Experiment 2),P0,8,Credential Vault,decision-platform d90plus req-r15,D90+,R15,O2,Y,Credential Vault,Decouple credential provisioning from presentation
+Story,Define and measure a seasoning window,"As an analyst, I need a stated seasoning period before exposure, so that we measure the vault rather than a new token.","• Seasoning window defined with evidence, not assumed.
+• Experiment start gated on the window having elapsed for the eligible population.
+• Window recorded on the experiment artefact.",,Credential Seasoning (enables Experiment 2),P0,8,Credential Vault,decision-platform d90plus req-r15,D90+,R15,O2,Y,Credential Vault,Provision ahead for the full eligible population
+Spike,SPIKE: quantify new-token vs seasoned-token performance,"As an analyst, I need to know whether token age materially affects approval, so that the seasoning window is set on evidence.","• Approval rate analysed by token age on existing production data.
+• Result determines the seasoning window, or shows that none is needed.
+• Finding documented and attached to the Experiment 2 design.",,Credential Seasoning (enables Experiment 2),P0,5,Credential Vault,decision-platform d90plus req-r15,D90+,R15,O2,Y,Credential Vault,Persist decision records with 13-month retention
